@@ -1,0 +1,293 @@
+---
+title: "K-Means Clustering"
+author: "Gary Baine, Jaimee Clark, Mario Tobar"
+self-contained: true
+format: revealjs
+editor: visual
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+---
+
+```{r, include=FALSE}
+library(factoextra)
+library(tidyverse)
+library(ggpubr)
+library(gridExtra)
+library(cluster)
+library(reshape2)
+
+cod_dat <- read.csv("cod.csv")
+
+cod_dat_df <- cod_dat[,-1]
+df <- na.omit(cod_dat_df)
+
+cormat <- round(cor(df), 2)
+head(cormat)
+
+reorder_cormat <- function(cormat){
+  # Use correlation between variables as distance
+  dd <- as.dist((1-cormat)/2)
+  hc <- hclust(dd)
+  cormat <-cormat[hc$order, hc$order]
+}
+
+# Get lower triangle of the correlation matrix
+get_lower_tri<-function(cormat){
+  cormat[upper.tri(cormat)] <- NA
+  return(cormat)
+}
+
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+# Reorder the correlation matrix
+cormat <- reorder_cormat(cormat)
+upper_tri <- get_upper_tri(cormat)
+
+# Melt the correlation matrix
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+```
+
+# Introduction
+
+## Statement of the Problem
+
+-   Video Games are an escape for people which makes it universally enjoyable
+-   Call of Duty (CoD) is the leader of First Person Shooting
+-   New games of CoD come out once a year
+-   The Goal of this presentation is to walk through k-means clustering, break down it's process and components and show an analysis on a real world dataset.
+
+## Relevance
+
+-   The Kill/Death ratio
+
+-   Gives an idea of the player's skill level
+
+-   The amount of money that comes with Professional players
+
+## Literature Review
+
+-   Clustering algorithms seek hidden patterns in data sets that may exist
+-   Patterns or similarities are then defined as groups or clusters
+-   This technique is applied in many applications like pattern recognition and image processing
+-   The k-means clustering algorithm was developed in 1967 by J.B. MacQueen
+
+# K Means Clustering
+
+## K Means Clustering 
+
+-   Clustering is used to find hidden groups in a raw dataset
+-   K-means clustering is numerical, unsupervised, and non-deterministic
+-   The k-means algorithm consists of two separate phases
+-   Phase one selects k random centers, where the value k is set in advance
+-   Phase two takes each data object to the nearest center
+
+## K Means Clustering - Basics
+
+-   The clusters are each represented by a center point: a centriod
+-   This centroid is found by an initial value
+-   Then the k-means calculates the squared distance between the input data points using the Hartigan-Wong Equation
+
+## K Means Clustering - Hartigan-Wong Equation
+
+-   The Hartigan-Wong equation is what is used to assign values to these centriods
+    -   $W(C_k)=\sum_{x_{i}\in{C_k}}(x_i-\mu_k)^2$
+
+    -   Where $x_i$ is a data point in cluster $C_k$ and $\mu_k$ is the mean value of the points within cluster $C_k$.
+
+    -   We assign a point $(x_i)$ to a cluster by minimizing the sum of squares (SS) distance of the observation to the cluster center $(\mu_k)$.
+-   Thus assigns that value to the centroids.
+
+## K Means Clustering - Limitations
+
+-   Number of clusters is predetermined
+-   The results of k-means depend on the initials cluster centers
+-   Algorithm contains the dead-unit problem
+    -   some units are initialized far away from the dataset thus becoming immediately "dead"
+-   Knowing about your data is a must so that the proper number of clusters can be determined
+-   Clusters containing the right circumstances can contain little to no data
+-   Constraints can help with limitations
+
+## 
+
+# Methodology
+
+## Data
+
+-   The dataset comes from our friends at Kaggle
+-   This dataset contains the in-game behaviors for over 1,000 players
+-   There are 19 features from players name to time spent playing the game
+-   The data was acquired by rapid API made By [elreco](https://rapidapi.com/elreco/api/call-of-duty-modern-warfare/details)
+
+## Data Features 
+
+-   name: this is the name for each player
+-   wins: number of times the player win a match
+-   kills: number of kills the player made in all his matches
+-   kdRatio: kill/deaths ratio that means, if a player has 10 kills and 5 deaths, his KD ratio is equal to 2. A KD ratio of 1 means that the player got killed exactly as many times as he successfully eliminated his opponents
+-   killstreak: kill a number of enemy players without dying.
+-   level: is the player grade
+
+## Data Features cont.
+
+-   losses: total number of losing
+-   prestige: it is an optional Mode that players can choose after they progress to Level 55 and max
+-   hits: number of times the player damaged another player
+-   timePlayed: the time spent by every player playing Call of Duty in hours
+-   headshots: number of times the player hit the others with headshots
+-   averageTime: average time
+-   gamesPlayed: number of times the player plays a match
+
+## Data Features cont.
+
+-   assists: number of times player damaging an enemy but a teammate gets the kill.
+-   misses: the number of times the player miss the hit
+-   xp: Experience Points (XP) are a numerical quantity exclusive to multiplayer that dictates a player's level and progress in the game.
+-   scorePerMinute: a measure of how many points players are gaining per unit time.
+-   shots: number of shots the player did
+-   deaths: number of time the player got killed in the game.
+
+## Pearson Correlation
+
+-   First we created a heatmap using Pearson correlations to see if there are any patterns that immediately stick out:
+
+```{r, echo=FALSE}
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+ggheatmap + 
+  geom_text(aes(Var2, Var1, label = ''), color = "black", size = 4) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.justification = c(1, 0),
+    legend.position = c(0.6, 0.7),
+    legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                               title.position = "top", title.hjust = 0.5))
+```
+
+## Process
+
+-   First step in the scaling process is to decide how many clusters we want generated in the final output
+-   K-means algorithm will randomly select k objects from the data to serve as initial centroids
+-   Each remaining data points are assigned to its closest centroid as measured by Euclidean distance between each object and the cluster mean
+    -   $d_{euc}(x,y) = \sqrt{\sum_{i=1}^n(x_{i}+y_{i})^2}$
+
+    -   Where x and y are two vectors of n length
+-   Then the algorithm finds the new mean value for each cluster
+
+## Ending the Process
+
+-   Each observation is checked again and reassigned if there is a new closest centroid
+-   Process ends when the cluster assignments stop changing
+-   The process by which assignments stop changing is called convergence
+    -   The algorithm determines convergence when the centroids in k-means remains in the same place for 2 iterations
+
+```{r, include=FALSE}
+data <- scale(df)
+head(data)
+
+k2 <- kmeans(data, centers = 2, nstart = 25)
+k3 <- kmeans(data, centers = 3, nstart = 25)
+k4 <- kmeans(data, centers = 4, nstart = 25)
+k5 <- kmeans(data, centers = 5, nstart = 25)
+
+p1 <- fviz_cluster(k2, geom = "point", data = data) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point", data = data) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point", data = data) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point", data = data) + ggtitle("k = 5")
+```
+
+## Cluster Results
+
+Here are the cluster results for clusters k=1,2,3,4, and 5.
+
+```{r, echo=FALSE}
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+```
+
+## Choosing an Appropriate amount of Clusters
+
+-   Elbow method
+
+-   The elbow method runs k-means clustering on the dataset for a range of values for k and then for each value of k computes an average score for all clusters.
+
+-   This method vary the amount of clusters, k, and compute the clustering algorithm
+
+-   Calculate the total within-cluster sum of squares (wss) for each k
+
+    -   Total within-cluster variation:
+        -   $tot.withiness = sum_{k=1}^kW(C_k)=\sum_{{k=1}^k}\sum_{x_{i}\in{C_k}}(x_i-\mu_k)^2$
+    -   Within cluster sum of squares by cluster: \[1\] 8376.374 6423.792 (between_SS / total_SS = 47.2 %)
+
+-   Plot the curve of wss based on k
+
+-   Where the curve "elbows" or bends significantly is indication of the optimal number of clusters to use for the analysis
+
+## Elbow Method
+
+```{r, echo=FALSE}
+set.seed(123)
+
+fviz_nbclust(data, kmeans, method = "wss") +
+  geom_vline(xintercept = 2, linetype = 2)
+```
+
+## Silhouette Method
+
+-   This method analyzes the quality of clustering
+
+-   Higher average silhouette widths indicate good clustering
+
+-   Similar to the elbow method, this method varies the value of k and finds the value that maximizes the average silhouette
+
+```{r, echo=FALSE}
+fviz_nbclust(data, kmeans, method = "silhouette")
+```
+
+# Conclusion and Final Results
+
+Visualizing the results:
+
+```{r, include=FALSE}
+#Final analysis
+set.seed(123)
+final <- kmeans(data, 2, nstart = 25)
+print(final)
+```
+
+```{r, echo=FALSE}
+
+#Visualize results
+fviz_cluster(final, data = data)
+final_df <- df %>%
+  mutate(Cluster = final$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+print(final_df)
+```
+
+-   In cluster 1, the average number of wins is 59.2
+
+-   In cluster 2, the average number of wins is 755
+
+-   Differentiating between Great and Bad Players
+
+-   Could add a 3rd cluster, but it would not be ideal
+
+    -   A third cluster is not ideal simply because of the math calculated by the elbow and the silhouette methods. It would be interesting, however, if we wanted to see if there was a delineation between "bad", "average", and "good" players. 2 clusters shows us only a division between "good" and "bad". There is one of those times where balancing between understanding the data and the point of the analysis meets following the hard and fast rules of the technique.
